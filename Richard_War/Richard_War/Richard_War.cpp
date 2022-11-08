@@ -6,82 +6,156 @@
 #include <allegro5/allegro_ttf.h>
 #include <allegro5/allegro_acodec.h>
 #include <allegro5/allegro_audio.h>
+#include <allegro5/allegro_native_dialog.h>
 
-const int LARGURA = 640;
-const int ALTURA = 490;
-enum TECLAS { CIMA, BAIXO, ESQUERDA, DIREITA };
+const int LARGURA = 800;
+const int ALTURA = 600;
+const int FPS = 60;
+const int NUM_BALAS = 5;
+
+enum TECLAS { CIMA, BAIXO, ESQUERDA, DIREITA, SPACE };
+
+struct Personagem {
+    int x;
+    int y;
+    int vidas;
+    int velocidade;
+    int borda_x;
+    int borda_y;
+    int pontos;
+};
+
+struct Projeteis {
+    int x;
+    int y;
+    int velocidade;
+    bool ativo;
+};
+
+struct Background {
+    float x;
+    float dirX;
+    float velX;
+    int width;
+    int height;
+
+    ALLEGRO_BITMAP *imagem;
+};
+
+//------------------------------ PROTÓTIPO ---------------------------//
+
+void InitPerso(Personagem& perso);
+
+void MovePersoCima(Personagem& perso);
+void MovePersoBaixo(Personagem& perso);
+void MovePersoDireita(Personagem& perso);
+void MovePersoEsquerda(Personagem& perso);
+
+void InitBalas(Projeteis balas[], int tamanho);
+void AtiraBalas(Projeteis balas[], int tamanho, Personagem perso);
+void AtualizaBalas(Projeteis balas[], int tamanho);
+void DesenharBalas(Projeteis balas[], int tamanho);
+
+void InitBackground(Background &back, float x, float velX, float dirX, float width, float height, ALLEGRO_BITMAP* imagem);
+void UpdBackground(Background &back);
+void DesenBackground(Background &back);
 
 int main()
 {
-    bool fim = false;
-    bool teclas[] = { false, false, false, false };
-    int pos_x = 50;                //Aqui define a posiçao horizontal que o boneco vai spawnar//
-    int pos_y = 215;                //Aqui define a posiçao vertical que o boneco vai spawnar//
+    //------------------------------ VARIAVEIS DO JOGO ---------------------------//
 
-    //--------- INICIALIZAÇAO --------//
-    ALLEGRO_DISPLAY* display = NULL;
     ALLEGRO_EVENT_QUEUE* fila_eventos = NULL;
+    ALLEGRO_TIMER* timer = NULL;
     ALLEGRO_BITMAP* player = NULL;
     ALLEGRO_BITMAP* background = NULL;
     ALLEGRO_SAMPLE* trilha_sonora = NULL;
     ALLEGRO_SAMPLE_INSTANCE* inst_trilha = NULL;
 
-    if (!al_init())
-    {
-        fprintf(stderr, "Falha ao inicializar a Allegro.\n");
+    bool fim = false;
+    bool desenha = true;
+    bool teclas[] = { false, false, false, false, false };
+
+    Background BG;
+
+
+    //------------------------------ INICILIZAÇAO DE OBJETOS ---------------------------//
+
+    Personagem perso;
+    Projeteis balas[NUM_BALAS];
+
+    //------------------------------- INICIALIZAÇAO -----------------------------------//
+
+    ALLEGRO_DISPLAY* display = NULL;
+
+    if (!al_init()) {
+        al_show_native_message_box(NULL, "AVISO", "ERRO", "ERRO AO INICIALIZAR A ALLEGRO", NULL, ALLEGRO_MESSAGEBOX_ERROR);
         return -1;
     }
 
     display = al_create_display(LARGURA, ALTURA);
 
-    if (!display)
-    {
-        fprintf(stderr, "Falha ao criar janela.\n");
+    if (!display) {
+        al_show_native_message_box(NULL, "AVISO", "ERRO", "ERRO AO CRIAR O DISPLAY", NULL, ALLEGRO_MESSAGEBOX_ERROR);
         return -1;
     }
+    //------------------------------ INICIALIZAÇÃO DE ADDONS ---------------------------//
 
-    //------ INICIALIZAÇAO DE ADDONS --------//
+    al_init_primitives_addon();
     al_install_keyboard();
     al_init_image_addon();
     al_install_audio();
     al_init_acodec_addon();
     al_reserve_samples(10);
-    //------ CRIAÇAO DA DISPOSITIVOS --------//
-    background = al_load_bitmap("imgs/Bgplaceholder.png");               //Aqui que muda a imagem de fundo//
-    al_draw_bitmap(background, 0, 0, 0);
+
+    //---------------------------------- CRIAÇÃO DA FILA --------------------------------//
+
+    fila_eventos = al_create_event_queue();
+    timer = al_create_timer(1.0 / FPS);
+    //------------------------------ CRIAÇÃO DE DISPOSITIVOS --------------------------//    
+
+    background = al_load_bitmap("imgs/Bgplaceholder.png");//Aqui que muda a imagem de fundo//
+    InitBackground(BG, 0, 5, -1, 800,600, background);
     al_flip_display();
 
-    player = al_load_bitmap("imgs/Richardplaceholder.bmp");                   //Aqui que muda a imagem do personagem//
+    player = al_load_bitmap("imgs/Richardplaceholder.bmp");                            //Aqui que muda a imagem do personagem//
     fila_eventos = al_create_event_queue();
-    trilha_sonora = al_load_sample("audio/musica.ogg");         //Aqui muda a trilha sonora//
+    trilha_sonora = al_load_sample("audio/musica.ogg");                    //Aqui muda a trilha sonora//
     inst_trilha = al_create_sample_instance(trilha_sonora);
     al_attach_sample_instance_to_mixer(inst_trilha, al_get_default_mixer());
     al_set_sample_instance_playmode(inst_trilha, ALLEGRO_PLAYMODE_LOOP);
     al_set_sample_instance_gain(inst_trilha, 0.8);
 
-    //------- REGISTRO DE SOURCES ----------//
-    al_register_event_source(fila_eventos, al_get_keyboard_event_source());
+    //--------------------------- REGSITRO DE SOURCES -----------------------------//
+
     al_register_event_source(fila_eventos, al_get_display_event_source(display));
-    //-------------- LOOP -----------------//
-    while (!fim)
-    {
+    al_register_event_source(fila_eventos, al_get_keyboard_event_source());
+    al_register_event_source(fila_eventos, al_get_timer_event_source(timer));
+
+    //------------------------- FUNÇÕES INICIAIS --------------------------------//
+
+    InitPerso(perso);
+    InitBalas(balas, NUM_BALAS);
+    //------------------------------ LOOP -------------------------------------//
+
+    al_start_timer(timer);
+
+    while (!fim) {
         ALLEGRO_EVENT ev;
-
-
         al_wait_for_event(fila_eventos, &ev);
-        al_draw_bitmap(background, 0, 0, 0);
-        al_flip_display();
 
-        if (ev.type == ALLEGRO_EVENT_KEY_DOWN)
-        {
+        if (ev.type == ALLEGRO_EVENT_DISPLAY_CLOSE) {
+            fim = true;
+        }
+        else if (ev.type == ALLEGRO_EVENT_KEY_DOWN) {
+
             al_play_sample_instance(inst_trilha);
-            if (ev.keyboard.keycode == ALLEGRO_KEY_ESCAPE)
-            {
-                fim = true;
-            }
 
-            switch (ev.keyboard.keycode)
-            {
+            switch (ev.keyboard.keycode) {
+
+            case ALLEGRO_KEY_ESCAPE:
+                fim = true;
+                break;
+
             case ALLEGRO_KEY_UP:
                 teclas[CIMA] = true;
                 break;
@@ -97,13 +171,16 @@ int main()
             case ALLEGRO_KEY_LEFT:
                 teclas[ESQUERDA] = true;
                 break;
+
+            case ALLEGRO_KEY_SPACE:
+                teclas[SPACE] = true;
+                AtiraBalas(balas, NUM_BALAS, perso);
+                break;
             }
         }
+        else if (ev.type == ALLEGRO_EVENT_KEY_UP) {
+            switch (ev.keyboard.keycode) {
 
-        if (ev.type == ALLEGRO_EVENT_KEY_UP)
-        {
-            switch (ev.keyboard.keycode)
-            {
             case ALLEGRO_KEY_UP:
                 teclas[CIMA] = false;
                 break;
@@ -112,72 +189,173 @@ int main()
                 teclas[BAIXO] = false;
                 break;
 
-            case ALLEGRO_KEY_LEFT:
-                teclas[ESQUERDA] = false;
-                break;
-
             case ALLEGRO_KEY_RIGHT:
                 teclas[DIREITA] = false;
+                break;
+
+            case ALLEGRO_KEY_LEFT:
+                teclas[ESQUERDA] = false;
                 break;
             }
         }
 
+        else if (ev.type == ALLEGRO_EVENT_TIMER) {
+            desenha = true;
+            UpdBackground(BG);
 
-        else if (ev.type == ALLEGRO_EVENT_DISPLAY_CLOSE)
-        {
-            fim = true;
-        }
-        if (pos_y < 250) {             
-            pos_y -= teclas[CIMA] * 4;
-            pos_y += teclas[BAIXO] * 4;
-            pos_x -= teclas[ESQUERDA] * 4;
-            pos_x += teclas[DIREITA] * 4;
-        }
-        else {
-            pos_y = 240;               
-        }
 
-        if (pos_y > 185) {             
-            pos_y -= teclas[CIMA] * 4;
-            pos_y += teclas[BAIXO] * 4;
-            pos_x -= teclas[ESQUERDA] * 4;
-            pos_x += teclas[DIREITA] * 4;
-        }
-        else {
-            pos_y = 190;                
+            if (teclas[CIMA]) {
+                MovePersoCima(perso);
+            }
+            if (teclas[BAIXO]) {
+                MovePersoBaixo(perso);
+            }
+            if (teclas[DIREITA]) {
+                MovePersoDireita(perso);
+            }
+            if (teclas[ESQUERDA]) {
+                MovePersoEsquerda(perso);
+            }
+            if (teclas[SPACE]) {
+                AtualizaBalas(balas, NUM_BALAS);
+            }
         }
 
-        if (pos_x > 9) {                
-            pos_y -= teclas[CIMA] * 4;
-            pos_y += teclas[BAIXO] * 4;
-            pos_x -= teclas[ESQUERDA] * 4;
-            pos_x += teclas[DIREITA] * 4;
-        }
-        else {
-            pos_x = 10;                 
-        }
+        //----------------------------- DESENHO -----------------------------------//
 
-        if (pos_x < 25) {              
-            pos_y -= teclas[CIMA] * 4;
-            pos_y += teclas[BAIXO] * 4;
-            pos_x -= teclas[ESQUERDA] * 4;
-            pos_x += teclas[DIREITA] * 4;
+        if (desenha && al_is_event_queue_empty(fila_eventos)) {
+            desenha = false;
+
+            DesenBackground(BG);
+            DesenharBalas(balas, NUM_BALAS);
+
+            al_draw_bitmap(player, perso.x, perso.y, NULL);
+            al_flip_display();
+            al_clear_to_color(al_map_rgb(0, 0, 0));
         }
-        else {
-            pos_x = 30;                
-        }
-        //------------- DESENHO --------------//
-        al_draw_bitmap(player, pos_x, pos_y, NULL);
-        al_flip_display();
-        al_clear_to_color(al_map_rgb(0, 0, 0));
     }
 
-    //---------- FINALIZAÇOES -----------//
+
+    //----------------------- FINALIZAÇÃO --------------------------------//
+
     al_destroy_display(display);
-    al_destroy_bitmap(player);
     al_destroy_event_queue(fila_eventos);
+    al_destroy_timer(timer);
     al_destroy_sample(trilha_sonora);
     al_destroy_sample_instance(inst_trilha);
+    al_destroy_bitmap(player);
+    al_destroy_bitmap(background);
 
     return 0;
+}
+void InitPerso(Personagem& perso)
+{
+    perso.x = 20;
+    perso.y = 300;
+    perso.vidas = 3;
+    perso.velocidade = 7;
+    perso.borda_x = 0;
+    perso.borda_y = 0;
+    perso.pontos = 0;
+}
+
+void MovePersoCima(Personagem& perso)
+{
+    perso.y -= perso.velocidade;
+
+    if (perso.y < 300) {
+        perso.y = 300;
+    }
+}
+
+void MovePersoBaixo(Personagem& perso)
+{
+    perso.y += perso.velocidade;
+
+    if (perso.y > 360) {
+        perso.y = 360;
+    }
+}
+
+void MovePersoDireita(Personagem& perso)
+{
+    perso.x += perso.velocidade;
+
+    if (perso.x > LARGURA / 4) {
+        perso.x = LARGURA / 4;
+    }
+}
+
+void MovePersoEsquerda(Personagem& perso)
+{
+    perso.x -= perso.velocidade;
+
+    if (perso.x < 0) {
+        perso.x = 0;
+    }
+}
+
+void InitBalas(Projeteis balas[], int tamanho)
+{
+    for (int i = 0; i < tamanho; i++) {
+        balas[i].velocidade = 10;
+        balas[i].ativo = false;
+    }
+}
+
+void AtiraBalas(Projeteis balas[], int tamanho, Personagem perso)
+{
+    for (int i = 0; i < tamanho; i++) {
+        if (!balas[i].ativo) {
+            balas[i].x = perso.x + 17;        //Posição horizontal da bala//
+            balas[i].y = perso.y + 40;        //Posição vertical da Bala//
+            balas[i].ativo = true;
+            break;
+        }
+    }
+}
+
+void AtualizaBalas(Projeteis balas[], int tamanho)
+{
+    for (int i = 0; i < tamanho; i++) {
+        if (balas[i].ativo) {
+            balas[i].x += balas[i].velocidade;
+
+            if (balas[i].x > LARGURA) {
+                balas[i].ativo = false;
+            }
+        }
+    }
+}
+
+void DesenharBalas(Projeteis balas[], int tamanho)
+{
+    for (int i = 0; i < tamanho; i++) {
+        if (balas[i].ativo) {
+            al_draw_filled_circle(balas[i].x, balas[i].y, 4, al_map_rgb(255, 200, 0));
+        }
+    }
+}
+
+void InitBackground(Background &back, float x, float velX, float dirX, float width, float height, ALLEGRO_BITMAP* imagem)
+{
+    back.x = x;
+    back.velX = velX;
+    back.dirX = dirX;
+    back.width = width;
+    back.height = height;
+    back.imagem = imagem;
+}
+
+void UpdBackground(Background &back) {
+    back.x += back.velX * back.dirX;
+    if (back.x + back.width <= 0)
+        back.x = 0;
+}
+
+void DesenBackground(Background& back) {
+    al_draw_bitmap(back.imagem, back.x, 0, 0);
+
+    if (back.x + back.width < LARGURA)
+        al_draw_bitmap(back.imagem, back.x + back.width, 0, 0);
 }
