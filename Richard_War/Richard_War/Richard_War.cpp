@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <cstdlib>
+#include <ctime>
 #include <allegro5/allegro.h>
 #include <allegro5/allegro_image.h>
 #include <allegro5/allegro_primitives.h>
@@ -7,30 +9,19 @@
 #include <allegro5/allegro_acodec.h>
 #include <allegro5/allegro_audio.h>
 #include <allegro5/allegro_native_dialog.h>
+#include "Objetos.h"
+
+//------------------------------ GLOBAIS ---------------------------//
 
 const int LARGURA = 800;
 const int ALTURA = 600;
 const int FPS = 60;
 const int NUM_BALAS = 5;
-
+const int NUM_INIMIGOS = 10;
 enum TECLAS { CIMA, BAIXO, ESQUERDA, DIREITA, SPACE };
+bool teclas[5] = { false, false, false, false, false };
 
-struct Personagem {
-    int x;
-    int y;
-    int vidas;
-    int velocidade;
-    int borda_x;
-    int borda_y;
-    int pontos;
-};
-
-struct Projeteis {
-    int x;
-    int y;
-    int velocidade;
-    bool ativo;
-};
+//------------------------------ OBJETOS ---------------------------//
 
 struct Background {
     float x;
@@ -39,10 +30,10 @@ struct Background {
     int width;
     int height;
 
-    ALLEGRO_BITMAP *imagem;
+    ALLEGRO_BITMAP* imagem;
 };
 
-//------------------------------ PROTÓTIPO ---------------------------//
+//------------------------------ PROTÓTIPOS ---------------------------//
 
 void InitPerso(Personagem& perso);
 
@@ -55,14 +46,33 @@ void InitBalas(Projeteis balas[], int tamanho);
 void AtiraBalas(Projeteis balas[], int tamanho, Personagem perso);
 void AtualizaBalas(Projeteis balas[], int tamanho);
 void DesenharBalas(Projeteis balas[], int tamanho);
+void ColisaoBalas(Projeteis balas[], int tamanhoB, Inimigo inimigos[], int tamanhoC);
 
-void InitBackground(Background &back, float x, float velX, float dirX, float width, float height, ALLEGRO_BITMAP* imagem);
-void UpdBackground(Background &back);
-void DesenBackground(Background &back);
+void InitInimigo(Inimigo inim[], int tamanho);
+void LiberaInimigo(Inimigo inim[], int tamanho);
+void AtualizarInimigo(Inimigo inim[], int tamanho);
+void DesenhaInimigo(Inimigo inim[], int tamanho);
+
+void InitBackground(Background& back, float x, float velX, float dirX, float width, float height, ALLEGRO_BITMAP* imagem);
+void UpdBackground(Background& back);
+void DesenBackground(Background& back);
 
 int main()
 {
-    //------------------------------ VARIAVEIS DO JOGO ---------------------------//
+    //------------------------------ VARIÁVEIS PRIMITIVAS ---------------------------//
+
+    bool fim = false;
+    bool desenha = true;
+
+    Background BG;
+
+    //------------------------------ VARIÁVEIS DE OBJETOS ---------------------------//
+
+    Personagem perso;
+    Inimigo inim[NUM_INIMIGOS];
+    Projeteis balas[NUM_BALAS];
+
+    //------------------------------ VARIÁVEIS DO ALLEGRO ---------------------------//
 
     ALLEGRO_EVENT_QUEUE* fila_eventos = NULL;
     ALLEGRO_TIMER* timer = NULL;
@@ -71,33 +81,22 @@ int main()
     ALLEGRO_SAMPLE* trilha_sonora = NULL;
     ALLEGRO_SAMPLE_INSTANCE* inst_trilha = NULL;
 
-    bool fim = false;
-    bool desenha = true;
-    bool teclas[] = { false, false, false, false, false };
-
-    Background BG;
-
-
-    //------------------------------ INICILIZAÇAO DE OBJETOS ---------------------------//
-
-    Personagem perso;
-    Projeteis balas[NUM_BALAS];
-
-    //------------------------------- INICIALIZAÇAO -----------------------------------//
+    //------------------------------- INICIALIZAÇÃO -----------------------------------//
 
     ALLEGRO_DISPLAY* display = NULL;
 
     if (!al_init()) {
-        al_show_native_message_box(NULL, "AVISO", "ERRO", "ERRO AO INICIALIZAR A ALLEGRO", NULL, ALLEGRO_MESSAGEBOX_ERROR);
+        al_show_native_message_box(NULL, "AVISO", "ERRO", "INICIALIZAR DO ALLEGRO", NULL, ALLEGRO_MESSAGEBOX_ERROR);
         return -1;
     }
 
     display = al_create_display(LARGURA, ALTURA);
 
     if (!display) {
-        al_show_native_message_box(NULL, "AVISO", "ERRO", "ERRO AO CRIAR O DISPLAY", NULL, ALLEGRO_MESSAGEBOX_ERROR);
+        al_show_native_message_box(NULL, "AVISO", "ERRO", "CRIAR DISPLAY", NULL, ALLEGRO_MESSAGEBOX_ERROR);
         return -1;
     }
+
     //------------------------------ INICIALIZAÇÃO DE ADDONS ---------------------------//
 
     al_init_primitives_addon();
@@ -111,19 +110,28 @@ int main()
 
     fila_eventos = al_create_event_queue();
     timer = al_create_timer(1.0 / FPS);
+
     //------------------------------ CRIAÇÃO DE DISPOSITIVOS --------------------------//    
 
-    background = al_load_bitmap("imgs/Bgplaceholder.png");//Aqui que muda a imagem de fundo//
-    InitBackground(BG, 0, 5, -1, 800,600, background);
+    background = al_load_bitmap("imgs/Bgplaceholder.png");                             //Aqui que muda a imagem de fundo//
+    InitBackground(BG, 0, 5, -1, 800, 600, background);
     al_flip_display();
 
     player = al_load_bitmap("imgs/Richardplaceholder.bmp");                            //Aqui que muda a imagem do personagem//
     fila_eventos = al_create_event_queue();
-    trilha_sonora = al_load_sample("audio/musica.ogg");                    //Aqui muda a trilha sonora//
+    trilha_sonora = al_load_sample("audio/musica.ogg");                                //Aqui muda a trilha sonora//
     inst_trilha = al_create_sample_instance(trilha_sonora);
     al_attach_sample_instance_to_mixer(inst_trilha, al_get_default_mixer());
     al_set_sample_instance_playmode(inst_trilha, ALLEGRO_PLAYMODE_LOOP);
     al_set_sample_instance_gain(inst_trilha, 0.8);
+
+    //------------------------- FUNÇÕES INICIAIS --------------------------------//
+
+    srand(time(NULL));
+
+    InitPerso(perso);
+    InitInimigo(inim, NUM_INIMIGOS);
+    InitBalas(balas, NUM_BALAS);
 
     //--------------------------- REGSITRO DE SOURCES -----------------------------//
 
@@ -131,10 +139,6 @@ int main()
     al_register_event_source(fila_eventos, al_get_keyboard_event_source());
     al_register_event_source(fila_eventos, al_get_timer_event_source(timer));
 
-    //------------------------- FUNÇÕES INICIAIS --------------------------------//
-
-    InitPerso(perso);
-    InitBalas(balas, NUM_BALAS);
     //------------------------------ LOOP -------------------------------------//
 
     al_start_timer(timer);
@@ -150,8 +154,8 @@ int main()
 
             al_play_sample_instance(inst_trilha);
 
-            switch (ev.keyboard.keycode) {
-
+            switch (ev.keyboard.keycode)
+            {
             case ALLEGRO_KEY_ESCAPE:
                 fim = true;
                 break;
@@ -179,8 +183,8 @@ int main()
             }
         }
         else if (ev.type == ALLEGRO_EVENT_KEY_UP) {
-            switch (ev.keyboard.keycode) {
-
+            switch (ev.keyboard.keycode)
+            {
             case ALLEGRO_KEY_UP:
                 teclas[CIMA] = false;
                 break;
@@ -203,7 +207,6 @@ int main()
             desenha = true;
             UpdBackground(BG);
 
-
             if (teclas[CIMA]) {
                 MovePersoCima(perso);
             }
@@ -219,6 +222,8 @@ int main()
             if (teclas[SPACE]) {
                 AtualizaBalas(balas, NUM_BALAS);
             }
+            LiberaInimigo(inim, NUM_INIMIGOS);
+            AtualizarInimigo(inim, NUM_INIMIGOS);
         }
 
         //----------------------------- DESENHO -----------------------------------//
@@ -228,13 +233,13 @@ int main()
 
             DesenBackground(BG);
             DesenharBalas(balas, NUM_BALAS);
+            DesenhaInimigo(inim, NUM_INIMIGOS);
 
             al_draw_bitmap(player, perso.x, perso.y, NULL);
             al_flip_display();
             al_clear_to_color(al_map_rgb(0, 0, 0));
         }
     }
-
 
     //----------------------- FINALIZAÇÃO --------------------------------//
 
@@ -248,6 +253,7 @@ int main()
 
     return 0;
 }
+
 void InitPerso(Personagem& perso)
 {
     perso.x = 20;
@@ -263,8 +269,8 @@ void MovePersoCima(Personagem& perso)
 {
     perso.y -= perso.velocidade;
 
-    if (perso.y < 300) {
-        perso.y = 300;
+    if (perso.y < 280) {
+        perso.y = 280;
     }
 }
 
@@ -308,7 +314,7 @@ void AtiraBalas(Projeteis balas[], int tamanho, Personagem perso)
     for (int i = 0; i < tamanho; i++) {
         if (!balas[i].ativo) {
             balas[i].x = perso.x + 17;        //Posição horizontal da bala//
-            balas[i].y = perso.y + 40;        //Posição vertical da Bala//
+            balas[i].y = perso.y + 100;        //Posição vertical da Bala//
             balas[i].ativo = true;
             break;
         }
@@ -337,7 +343,99 @@ void DesenharBalas(Projeteis balas[], int tamanho)
     }
 }
 
-void InitBackground(Background &back, float x, float velX, float dirX, float width, float height, ALLEGRO_BITMAP* imagem)
+void ColisaoBalas(Projeteis balas[], int tamanhoB, Inimigo inim[], int tamanhoC)
+{
+    for (int i = 0; i < tamanhoB; i++)
+    {
+        if (balas[i].ativo)
+        {
+            for (int j = 0; j < tamanhoC; j++)
+            {
+                if (inim[j].ativo)
+                {
+                    if (balas[i].x > (inim[j].x - inim[j].borda_x) &&
+                        balas[i].x < (inim[j].x + inim[j].borda_x) &&
+                        balas[i].y >(inim[j].y - inim[j].borda_y) &&
+                        balas[i].y < (inim[j].y + inim[j].borda_y))
+                    {
+                        balas[i].ativo = false;
+                        inim[j].ativo = false;
+                    }
+                }
+            }
+        }
+    }
+}
+
+void InitInimigo(Inimigo inim[], int tamanho)
+{
+    for (int i = 0; i < tamanho; i++)
+    {
+        inim[i].ID = Inim;
+        inim[i].velocidade = 3;
+        inim[i].borda_x = 18;
+        inim[i].borda_y = 18;
+        inim[i].ativo = false;
+    }
+}
+
+void LiberaInimigo(Inimigo inim[], int tamanho)
+{
+    for (int i = 0; i < tamanho; i++)
+    {
+        if (!inim[i].ativo)
+        {
+            if (rand() % 500 == 0)
+            {
+                inim[i].x = LARGURA;
+                srand(time(NULL));
+                int j = rand() % 2;
+                switch (j)
+                {
+                case 0:
+                    inim[i].y = 400;
+                    break;
+                case 1:
+                    inim[i].y = 300;
+                    break;
+                case 2:
+                    inim[i].y = 500;
+                    break;
+                }
+                inim[i].ativo = true;
+                break;
+            }
+        }
+    }
+}
+
+void AtualizarInimigo(Inimigo inim[], int tamanho)
+{
+    for (int i = 0; i < tamanho; i++)
+    {
+        if (inim[i].ativo)
+        {
+            inim[i].x -= inim[i].velocidade;
+            if (inim[i].x < 0)
+            {
+                inim[i].ativo = false;
+            }
+        }
+    }
+}
+
+void DesenhaInimigo(Inimigo inim[], int tamanho)
+{
+    for (int i = 0; i < tamanho; i++)
+    {
+        if (inim[i].ativo)
+        {
+            al_draw_filled_circle(inim[i].x, inim[i].y, 20, al_map_rgb(255, 0, 0));
+        }
+    }
+}
+
+void InitBackground(Background& back, float x, float velX, float dirX, float width, float height, ALLEGRO_BITMAP* imagem)
 {
     back.x = x;
     back.velX = velX;
@@ -347,7 +445,7 @@ void InitBackground(Background &back, float x, float velX, float dirX, float wid
     back.imagem = imagem;
 }
 
-void UpdBackground(Background &back) {
+void UpdBackground(Background& back) {
     back.x += back.velX * back.dirX;
     if (back.x + back.width <= 0)
         back.x = 0;
