@@ -18,8 +18,8 @@ const int ALTURA = 600;
 const int FPS = 60;
 const int NUM_BALAS = 5;
 const int NUM_INIMIGOS = 10;
-enum TECLAS { CIMA, BAIXO, ESQUERDA, DIREITA, SPACE };
-bool teclas[5] = { false, false, false, false, false };
+enum TECLAS { CIMA, BAIXO, ESQUERDA, DIREITA, SPACE, ENTER };
+bool teclas[6] = { false, false, false, false, false, false };
 
 //------------------------------ OBJETOS ---------------------------//
 
@@ -46,12 +46,13 @@ void InitBalas(Projeteis balas[], int tamanho);
 void AtiraBalas(Projeteis balas[], int tamanho, Personagem perso);
 void AtualizaBalas(Projeteis balas[], int tamanho);
 void DesenharBalas(Projeteis balas[], int tamanho);
-void ColisaoBalas(Projeteis balas[], int tamanhoB, Inimigo inimigos[], int tamanhoC);
+void BalaColidida(Projeteis balas[], int b_tamanho, Inimigo inimigos[], int c_tamanho, Personagem& perso);
 
 void InitInimigo(Inimigo inim[], int tamanho);
 void LiberaInimigo(Inimigo inim[], int tamanho);
 void AtualizarInimigo(Inimigo inim[], int tamanho);
 void DesenhaInimigo(Inimigo inim[], int tamanho);
+void InimigoColidido(Inimigo inim[], int c_tamanho, Personagem& perso);
 
 void InitBackground(Background& back, float x, float velX, float dirX, float width, float height, ALLEGRO_BITMAP* imagem);
 void UpdBackground(Background& back);
@@ -63,6 +64,7 @@ int main()
 
     bool fim = false;
     bool desenha = true;
+    bool game_over = false;
 
     Background BG;
 
@@ -80,6 +82,7 @@ int main()
     ALLEGRO_BITMAP* background = NULL;
     ALLEGRO_SAMPLE* trilha_sonora = NULL;
     ALLEGRO_SAMPLE_INSTANCE* inst_trilha = NULL;
+    ALLEGRO_FONT* font14 = NULL;
 
     //------------------------------- INICIALIZAÇÃO -----------------------------------//
 
@@ -105,11 +108,14 @@ int main()
     al_install_audio();
     al_init_acodec_addon();
     al_reserve_samples(10);
+    al_init_font_addon();
+    al_init_ttf_addon();
 
     //---------------------------------- CRIAÇÃO DA FILA --------------------------------//
 
     fila_eventos = al_create_event_queue();
     timer = al_create_timer(1.0 / FPS);
+    font14 = al_load_font("arial.ttf", 14, NULL);   //Fonte das Letras
 
     //------------------------------ CRIAÇÃO DE DISPOSITIVOS --------------------------//    
 
@@ -180,8 +186,13 @@ int main()
                 teclas[SPACE] = true;
                 AtiraBalas(balas, NUM_BALAS, perso);
                 break;
+
+            case ALLEGRO_KEY_ENTER:
+                teclas[ENTER] = true;
+                break;
             }
         }
+
         else if (ev.type == ALLEGRO_EVENT_KEY_UP) {
             switch (ev.keyboard.keycode)
             {
@@ -199,6 +210,10 @@ int main()
 
             case ALLEGRO_KEY_LEFT:
                 teclas[ESQUERDA] = false;
+                break;
+
+            case ALLEGRO_KEY_ENTER:
+                teclas[ENTER] = false;
                 break;
             }
         }
@@ -222,8 +237,16 @@ int main()
             if (teclas[SPACE]) {
                 AtualizaBalas(balas, NUM_BALAS);
             }
-            LiberaInimigo(inim, NUM_INIMIGOS);
-            AtualizarInimigo(inim, NUM_INIMIGOS);
+            if (!game_over) {
+                LiberaInimigo(inim, NUM_INIMIGOS);
+                AtualizarInimigo(inim, NUM_INIMIGOS);
+                BalaColidida(balas, NUM_BALAS, inim, NUM_INIMIGOS, perso);
+                InimigoColidido(inim, NUM_INIMIGOS, perso);
+
+                if (perso.vidas <= 0) {
+                    game_over = true;
+                }
+            }
         }
 
         //----------------------------- DESENHO -----------------------------------//
@@ -231,10 +254,31 @@ int main()
         if (desenha && al_is_event_queue_empty(fila_eventos)) {
             desenha = false;
 
-            DesenBackground(BG);
-            DesenharBalas(balas, NUM_BALAS);
-            DesenhaInimigo(inim, NUM_INIMIGOS);
+            if (!game_over) {
+                DesenBackground(BG);
+                DesenharBalas(balas, NUM_BALAS);
+                DesenhaInimigo(inim, NUM_INIMIGOS);
 
+                al_draw_textf(font14, al_map_rgb(255, 255, 255), 0, 0, NULL, "VIDAS: %d  /  Pontos: %d", perso.vidas, perso.pontos);
+
+
+            }
+            else if (game_over) {
+                al_draw_textf(font14, al_map_rgb(255, 255, 255), LARGURA / 2, ALTURA / 2, ALLEGRO_ALIGN_CENTER, "Fim de Jogo.  Seus Pontos: %d.  Pressione ENTER Para Jogar Novamente ou ESC Para Sair", perso.pontos);
+                teclas[CIMA] = false;
+                teclas[BAIXO] = false;
+                teclas[DIREITA] = false;
+                teclas[ESQUERDA] = false;
+                perso.x = 800;
+
+                if (teclas[ENTER]) {
+                    InitPerso(perso);
+                    InitInimigo(inim, NUM_INIMIGOS);
+                    InitBalas(balas, NUM_BALAS);
+
+                    game_over = false;
+                }
+            }
             al_draw_bitmap(player, perso.x, perso.y, NULL);
             al_flip_display();
             al_clear_to_color(al_map_rgb(0, 0, 0));
@@ -250,6 +294,7 @@ int main()
     al_destroy_sample_instance(inst_trilha);
     al_destroy_bitmap(player);
     al_destroy_bitmap(background);
+    al_destroy_font(font14);
 
     return 0;
 }
@@ -260,9 +305,11 @@ void InitPerso(Personagem& perso)
     perso.y = 300;
     perso.vidas = 3;
     perso.velocidade = 7;
-    perso.borda_x = 0;
-    perso.borda_y = 0;
+    perso.borda_x = 40;          //Ajusta Posição Vertical da Hitbox
+    perso.borda_y = 40;         //Ajusta Posição Horizontal da Hitbox
     perso.pontos = 0;
+
+    al_draw_filled_rectangle(perso.x - perso.borda_x, perso.y - perso.borda_y, perso.x + perso.borda_x, perso.y + perso.borda_y, al_map_rgb(255, 0, 255));
 }
 
 void MovePersoCima(Personagem& perso)
@@ -314,7 +361,7 @@ void AtiraBalas(Projeteis balas[], int tamanho, Personagem perso)
     for (int i = 0; i < tamanho; i++) {
         if (!balas[i].ativo) {
             balas[i].x = perso.x + 17;        //Posição horizontal da bala//
-            balas[i].y = perso.y + 100;        //Posição vertical da Bala//
+            balas[i].y = perso.y + 30;        //Posição vertical da Bala//
             balas[i].ativo = true;
             break;
         }
@@ -343,13 +390,13 @@ void DesenharBalas(Projeteis balas[], int tamanho)
     }
 }
 
-void ColisaoBalas(Projeteis balas[], int tamanhoB, Inimigo inim[], int tamanhoC)
+void BalaColidida(Projeteis balas[], int b_tamanho, Inimigo inim[], int c_tamanho, Personagem& perso)
 {
-    for (int i = 0; i < tamanhoB; i++)
+    for (int i = 0; i < b_tamanho; i++)
     {
         if (balas[i].ativo)
         {
-            for (int j = 0; j < tamanhoC; j++)
+            for (int j = 0; j < c_tamanho; j++)
             {
                 if (inim[j].ativo)
                 {
@@ -360,6 +407,7 @@ void ColisaoBalas(Projeteis balas[], int tamanhoB, Inimigo inim[], int tamanhoC)
                     {
                         balas[i].ativo = false;
                         inim[j].ativo = false;
+                        perso.pontos++;
                     }
                 }
             }
@@ -416,10 +464,7 @@ void AtualizarInimigo(Inimigo inim[], int tamanho)
         if (inim[i].ativo)
         {
             inim[i].x -= inim[i].velocidade;
-            if (inim[i].x < 0)
-            {
-                inim[i].ativo = false;
-            }
+
         }
     }
 }
@@ -433,6 +478,28 @@ void DesenhaInimigo(Inimigo inim[], int tamanho)
             al_draw_filled_circle(inim[i].x, inim[i].y, 20, al_map_rgb(255, 0, 0));
         }
     }
+}
+
+void InimigoColidido(Inimigo inim[], int c_tamanho, Personagem& perso)
+{
+    for (int i = 0; i < c_tamanho; i++) {
+        if (inim[i].ativo) {
+            if ((inim[i].x - inim[i].borda_x) < (perso.x + perso.borda_x) &&
+                (inim[i].x + inim[i].borda_x) > (perso.x - perso.borda_x) &&
+                (inim[i].y - inim[i].borda_y) < (perso.y + perso.borda_y) &&
+                (inim[i].y + inim[i].borda_y) > (perso.y - perso.borda_y))
+            {
+                inim[i].ativo = false;
+                perso.vidas--;
+            }
+            else if (inim[i].x < 0)
+            {
+                inim[i].ativo = false;
+                perso.vidas--;
+            }
+        }
+    }
+
 }
 
 void InitBackground(Background& back, float x, float velX, float dirX, float width, float height, ALLEGRO_BITMAP* imagem)
