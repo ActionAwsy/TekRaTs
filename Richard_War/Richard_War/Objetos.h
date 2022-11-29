@@ -21,6 +21,7 @@ struct Projeteis {
     bool ativo;
 };
 
+
 struct Inimigo {
     int ID;
     int x;

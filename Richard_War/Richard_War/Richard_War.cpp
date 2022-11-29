@@ -46,7 +46,9 @@ void InitBalas(Projeteis balas[], int tamanho);
 void AtiraBalas(Projeteis balas[], int tamanho, Personagem perso);
 void AtualizaBalas(Projeteis balas[], int tamanho);
 void DesenharBalas(Projeteis balas[], int tamanho);
+void DesenharBalaHS(Projeteis balas[], int tamanho);
 void BalaColidida(Projeteis balas[], int b_tamanho, Inimigo inimigos[], int c_tamanho, Personagem& perso);
+void BalaColididaHS(Projeteis balas[], int b_tamanho, Inimigo inimigos[], int c_tamanho, Personagem& perso);
 
 void InitInimigo(Inimigo inim[], int tamanho);
 void LiberaInimigo(Inimigo inim[], int tamanho);
@@ -256,7 +258,16 @@ int main()
 
             if (!game_over) {
                 DesenBackground(BG);
-                DesenharBalas(balas, NUM_BALAS);
+
+                    if (NUM_BALAS >= 2)
+                    {
+                        DesenharBalaHS(balas, NUM_BALAS);
+                    }
+                    else
+                    {
+                        DesenharBalas(balas, NUM_BALAS);
+                    }
+
                 DesenhaInimigo(inim, NUM_INIMIGOS);
 
                 al_draw_textf(font14, al_map_rgb(255, 255, 255), 0, 0, NULL, "VIDAS: %d  /  Pontos: %d", perso.vidas, perso.pontos);
@@ -325,8 +336,8 @@ void MovePersoBaixo(Personagem& perso)
 {
     perso.y += perso.velocidade;
 
-    if (perso.y > 360) {
-        perso.y = 360;
+    if (perso.y > 480) {
+        perso.y = 480;
     }
 }
 
@@ -385,7 +396,16 @@ void DesenharBalas(Projeteis balas[], int tamanho)
 {
     for (int i = 0; i < tamanho; i++) {
         if (balas[i].ativo) {
-            al_draw_filled_circle(balas[i].x, balas[i].y, 4, al_map_rgb(255, 200, 0));
+            al_draw_filled_ellipse(balas[i].x, balas[i].y, 16, 1, al_map_rgb(255, 200, 0));
+        }
+    }
+}
+
+void DesenharBalaHS(Projeteis balas[], int tamanho)
+{
+    for (int i = 0; i < tamanho; i++) {
+        if (balas[i].ativo) {
+            al_draw_filled_ellipse(balas[i].x, balas[i].y, 40, 2, al_map_rgb(255, 200, 0));
         }
     }
 }
@@ -406,6 +426,31 @@ void BalaColidida(Projeteis balas[], int b_tamanho, Inimigo inim[], int c_tamanh
                         balas[i].y < (inim[j].y + inim[j].borda_y))
                     {
                         balas[i].ativo = false;
+                        inim[j].ativo = false;
+                        perso.pontos++;
+                    }
+                }
+            }
+        }
+    }
+}
+
+void BalaColididaHS(Projeteis balas[], int b_tamanho, Inimigo inim[], int c_tamanho, Personagem& perso)
+{
+    for (int i = 0; i < b_tamanho; i++)
+    {
+        if (balas[i].ativo)
+        {
+            for (int j = 0; j < c_tamanho; j++)
+            {
+                if (inim[j].ativo)
+                {
+                    if (balas[i].x > (inim[j].x - inim[j].borda_x) &&
+                        balas[i].x < (inim[j].x + inim[j].borda_x) &&
+                        balas[i].y >(inim[j].y - inim[j].borda_y) &&
+                        balas[i].y < (inim[j].y + inim[j].borda_y))
+                    {
+                        balas[i].ativo = true;
                         inim[j].ativo = false;
                         perso.pontos++;
                     }
@@ -437,7 +482,7 @@ void LiberaInimigo(Inimigo inim[], int tamanho)
             {
                 inim[i].x = LARGURA;
                 srand(time(NULL));
-                int j = rand() % 2;
+                int j = rand() % 3;
                 switch (j)
                 {
                 case 0:

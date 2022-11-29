@@ -148,6 +148,7 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="..\..\..\..\..\..\..\usuario\Downloads\Richard.bmp" />
     <Image Include="imgs\Bgplaceholder.png" />
     <Image Include="imgs\Richardplaceholder.bmp" />
   </ItemGroup>
