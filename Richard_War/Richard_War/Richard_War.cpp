@@ -17,7 +17,7 @@ const int LARGURA = 800;
 const int ALTURA = 600;
 const int FPS = 60;
 const int NUM_BALAS = 5;
-const int NUM_INIMIGOS = 10;
+const int NUM_INIMIGOS = 20;
 enum TECLAS { CIMA, BAIXO, ESQUERDA, DIREITA, SPACE, ENTER };
 bool teclas[6] = { false, false, false, false, false, false };
 
@@ -80,6 +80,7 @@ int main()
 
     ALLEGRO_EVENT_QUEUE* fila_eventos = NULL;
     ALLEGRO_TIMER* timer = NULL;
+    ALLEGRO_BITMAP* enemy = NULL;
     ALLEGRO_BITMAP* player = NULL;
     ALLEGRO_BITMAP* background = NULL;
     ALLEGRO_SAMPLE* trilha_sonora = NULL;
@@ -125,7 +126,8 @@ int main()
     InitBackground(BG, 0, 5, -1, 800, 600, background);
     al_flip_display();
 
-    player = al_load_bitmap("imgs/Richardplaceholder.bmp");                            //Aqui que muda a imagem do personagem//
+    player = al_load_bitmap("imgs/Richardplaceholder.png");                            //Aqui que muda a imagem do personagem//
+    enemy = al_load_bitmap("imgs/Enemyplaceholder.png");
     fila_eventos = al_create_event_queue();
     trilha_sonora = al_load_sample("audio/musica.ogg");                                //Aqui muda a trilha sonora//
     inst_trilha = al_create_sample_instance(trilha_sonora);
@@ -371,8 +373,8 @@ void AtiraBalas(Projeteis balas[], int tamanho, Personagem perso)
 {
     for (int i = 0; i < tamanho; i++) {
         if (!balas[i].ativo) {
-            balas[i].x = perso.x + 17;        //Posição horizontal da bala//
-            balas[i].y = perso.y + 30;        //Posição vertical da Bala//
+            balas[i].x = perso.x + 30;        //Posição horizontal da bala//
+            balas[i].y = perso.y + 60;        //Posição vertical da Bala//
             balas[i].ativo = true;
             break;
         }
@@ -405,7 +407,7 @@ void DesenharBalaHS(Projeteis balas[], int tamanho)
 {
     for (int i = 0; i < tamanho; i++) {
         if (balas[i].ativo) {
-            al_draw_filled_ellipse(balas[i].x, balas[i].y, 40, 2, al_map_rgb(255, 200, 0));
+            al_draw_filled_ellipse(balas[i].x, balas[i].y, 20, 2, al_map_rgb(255, 200, 0));
         }
     }
 }
@@ -428,6 +430,7 @@ void BalaColidida(Projeteis balas[], int b_tamanho, Inimigo inim[], int c_tamanh
                         balas[i].ativo = false;
                         inim[j].ativo = false;
                         perso.pontos++;
+                        inim[i].velocidade++;
                     }
                 }
             }
@@ -453,6 +456,7 @@ void BalaColididaHS(Projeteis balas[], int b_tamanho, Inimigo inim[], int c_tama
                         balas[i].ativo = true;
                         inim[j].ativo = false;
                         perso.pontos++;
+                        inim[i].velocidade++;
                     }
                 }
             }
@@ -478,7 +482,7 @@ void LiberaInimigo(Inimigo inim[], int tamanho)
     {
         if (!inim[i].ativo)
         {
-            if (rand() % 500 == 0)
+            if (rand() % 1000 == 0)
             {
                 inim[i].x = LARGURA;
                 srand(time(NULL));
@@ -486,10 +490,10 @@ void LiberaInimigo(Inimigo inim[], int tamanho)
                 switch (j)
                 {
                 case 0:
-                    inim[i].y = 400;
+                    inim[i].y = 350;
                     break;
                 case 1:
-                    inim[i].y = 300;
+                    inim[i].y = 425;
                     break;
                 case 2:
                     inim[i].y = 500;
@@ -527,8 +531,10 @@ void DesenhaInimigo(Inimigo inim[], int tamanho)
 
 void InimigoColidido(Inimigo inim[], int c_tamanho, Personagem& perso)
 {
-    for (int i = 0; i < c_tamanho; i++) {
-        if (inim[i].ativo) {
+    for (int i = 0; i < c_tamanho; i++)
+    {
+        if (inim[i].ativo)
+        {
             if ((inim[i].x - inim[i].borda_x) < (perso.x + perso.borda_x) &&
                 (inim[i].x + inim[i].borda_x) > (perso.x - perso.borda_x) &&
                 (inim[i].y - inim[i].borda_y) < (perso.y + perso.borda_y) &&

@@ -35,6 +35,9 @@
     <Image Include="..\..\..\..\..\..\..\usuario\Downloads\Richard.bmp">
       <Filter>Arquivos de Recurso</Filter>
     </Image>
+    <Image Include="imgs\Enemyplaceholder.png">
+      <Filter>Arquivos de Recurso</Filter>
+    </Image>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Objetos.h">

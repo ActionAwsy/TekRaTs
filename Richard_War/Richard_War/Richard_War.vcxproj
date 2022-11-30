@@ -150,6 +150,7 @@
   <ItemGroup>
     <Image Include="..\..\..\..\..\..\..\usuario\Downloads\Richard.bmp" />
     <Image Include="imgs\Bgplaceholder.png" />
+    <Image Include="imgs\Enemyplaceholder.png" />
     <Image Include="imgs\Richardplaceholder.bmp" />
   </ItemGroup>
   <ItemGroup>
